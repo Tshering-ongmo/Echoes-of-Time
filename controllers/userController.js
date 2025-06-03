@@ -1,30 +1,36 @@
 const db = require('../config/db');
-const catchAsync = require('../utils/catchAsync');
-const Testimonial  = require('../Models/testimonialModel');
-const { validationResult } = require('express-validator');
+const Testimonial = require('../Models/testimonialModel');
 
+// ========== DASHBOARD ==========
 exports.getDashboard = (req, res) => {
-    res.render('user/dashboard', { message: null });
+  res.render('user/dashboard', { message: null });
 };
 
+// ========== STORIES ==========
 exports.getStories = async (req, res, next) => {
   try {
-    const stories = await db.any('SELECT *, created_at as "createdAt" FROM stories WHERE published = TRUE ORDER BY created_at DESC');
-    
-    // Format the stories data
+    const stories = await db.any(`
+      SELECT *, created_at AS "createdAt" 
+      FROM stories 
+      WHERE published = TRUE 
+      ORDER BY created_at DESC
+    `);
+
     const formattedStories = stories.map(story => ({
       ...story,
       createdAt: story.createdAt ? new Date(story.createdAt) : null,
-      formattedDate: story.createdAt ? new Date(story.createdAt).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      }) : 'Date not available'
+      formattedDate: story.createdAt
+        ? new Date(story.createdAt).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })
+        : 'Date not available',
     }));
 
     res.render('user/narration', {
       title: 'Stories of Bhutan',
-      stories: formattedStories
+      stories: formattedStories,
     });
   } catch (err) {
     next(err);
@@ -33,35 +39,42 @@ exports.getStories = async (req, res, next) => {
 
 exports.getSingleStory = async (req, res, next) => {
   try {
-    const story = await db.one('SELECT *, created_at as "createdAt" FROM stories WHERE id = $1 AND published = TRUE', [req.params.id]);
-    
-    // Format the story data
+    const story = await db.one(
+      `SELECT *, created_at AS "createdAt" 
+       FROM stories 
+       WHERE id = $1 AND published = TRUE`,
+      [req.params.id]
+    );
+
     const formattedStory = {
       ...story,
       createdAt: story.createdAt ? new Date(story.createdAt) : null,
-      formattedDate: story.createdAt ? new Date(story.createdAt).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      }) : 'Date not available'
+      formattedDate: story.createdAt
+        ? new Date(story.createdAt).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })
+        : 'Date not available',
     };
 
     res.render('storyDetail', {
       title: story.title,
-      story: formattedStory
+      story: formattedStory,
     });
   } catch (err) {
     if (err.code === db.errors.queryResultErrorCode.noData) {
-      return next(new Error('Story not found or is not published yet'));
+      return next(new Error('Story not found or not published yet'));
     }
     next(err);
   }
 };
 
+// ========== ABOUT ==========
 exports.getAboutPage = (req, res) => {
   try {
     res.render('user/about', {
-      title: 'About Us - Echoes of Time'
+      title: 'About Us - Echoes of Time',
     });
   } catch (err) {
     console.error('Error rendering about page:', err);
@@ -69,13 +82,14 @@ exports.getAboutPage = (req, res) => {
   }
 };
 
-//User Testimonials
-// Submit a testimonial
+// ========== TESTIMONIALS ==========
+
+// Show approved testimonials to users
 exports.showTestimonialsPage = async (req, res) => {
   try {
     const testimonials = await db.any(
       `SELECT * FROM testimonials 
-       WHERE is_approved = true 
+       WHERE is_approved = TRUE 
        ORDER BY created_at DESC`
     );
     res.render('user/testimonials', { testimonials });
@@ -85,40 +99,39 @@ exports.showTestimonialsPage = async (req, res) => {
   }
 };
 
+// Handle user testimonial submission
 exports.submitTestimonial = async (req, res) => {
   try {
     const { user_name, user_email, content, rating } = req.body;
-    
-    // Validate required fields
+
     if (!user_name || !user_email || !content || !rating) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'All fields are required' 
+      return res.status(400).json({
+        success: false,
+        message: 'All fields are required',
       });
     }
 
-    // Create testimonial
     await db.one(
       `INSERT INTO testimonials(user_name, user_email, content, rating) 
        VALUES($1, $2, $3, $4) 
        RETURNING *`,
       [user_name, user_email, content, rating]
     );
-    
-    // Send success response
-    res.status(200).json({ 
-      success: true, 
-      message: 'Testimonial submitted successfully' 
+
+    res.status(200).json({
+      success: true,
+      message: 'Testimonial submitted successfully',
     });
   } catch (error) {
     console.error('Error submitting testimonial:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error submitting testimonial' 
+    res.status(500).json({
+      success: false,
+      message: 'Error submitting testimonial',
     });
   }
 };
 
+// Get testimonials by a specific user
 exports.getUserTestimonials = async (req, res) => {
   try {
     const { email } = req.params;
@@ -131,9 +144,10 @@ exports.getUserTestimonials = async (req, res) => {
     res.json(testimonials);
   } catch (error) {
     console.error('Error fetching user testimonials:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error fetching testimonials' 
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching testimonials',
     });
   }
 };
+// Delete a user's testimonial

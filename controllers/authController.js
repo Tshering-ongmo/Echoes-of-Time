@@ -4,40 +4,31 @@ const db = require('../config/db');
 const nodemailer = require('nodemailer');
 require('dotenv').config();
 
-// Constants
 const saltRounds = 10;
 
-// Validate environment variables
+// Ensure required environment variables
 if (!process.env.JWT_SECRET) throw new Error('❌ JWT_SECRET is required');
 if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
   console.warn('⚠️ Email credentials not configured');
 }
 
-// Validate and set BASE_URL
+// Determine BASE_URL
 const BASE_URL = process.env.BASE_URL || `http://localhost:${process.env.PORT || 2004}`;
-if (!BASE_URL.startsWith('http')) {
-  throw new Error('❌ BASE_URL must start with http:// or https://');
-}
+if (!BASE_URL.startsWith('http')) throw new Error('❌ BASE_URL must start with http:// or https://');
 console.log(`ℹ️ Using BASE_URL: ${BASE_URL}`);
 
 // Helper functions
 const isPasswordComplex = (password) => {
-  const minLength = 8;
-  const hasNumber = /\d/;
-  const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/;
-  const hasUpper = /[A-Z]/;
-  const hasLower = /[a-z]/;
-  
-  return password.length >= minLength && 
-         hasNumber.test(password) && 
-         hasSpecialChar.test(password) &&
-         hasUpper.test(password) &&
-         hasLower.test(password);
+  return password.length >= 8 &&
+    /\d/.test(password) &&
+    /[!@#$%^&*(),.?":{}|<>]/.test(password) &&
+    /[A-Z]/.test(password) &&
+    /[a-z]/.test(password);
 };
 
 const normalizeEmail = (email) => email.toLowerCase().trim();
 
-// Email transporter with retry logic
+// Email transporter
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   pool: true,
@@ -45,7 +36,7 @@ const transporter = nodemailer.createTransport({
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
-  tls: { rejectUnauthorized: false } // For development only
+  tls: { rejectUnauthorized: false }
 });
 
 const sendEmail = async (mailOptions, retries = 3) => {
@@ -86,13 +77,13 @@ exports.postLogin = async (req, res) => {
     }
 
     const token = jwt.sign(
-      { userId: user.id, email: user.email, role: user.role },
+      { userId: user.id, email: user.email },
       process.env.JWT_SECRET,
       { expiresIn: '1h' }
     );
 
     res.cookie('jwt', token, { httpOnly: true, secure: process.env.NODE_ENV === 'production' });
-    res.redirect(user.role === 'admin' ? '/admin/dashboard' : '/user/dashboard');
+    res.redirect(user.email === process.env.ADMIN_EMAIL ? '/admin/dashboard' : '/user/dashboard');
   } catch (error) {
     console.error('Login error:', error);
     res.render('pages/login', { message: 'An error occurred. Please try again.' });
@@ -107,7 +98,6 @@ exports.postSignup = async (req, res) => {
   const { name, email, password } = req.body;
 
   try {
-    // Validation
     if (!name || !email || !password) {
       return res.render('pages/signup', { message: 'All fields are required' });
     }
@@ -127,7 +117,6 @@ exports.postSignup = async (req, res) => {
       return res.render('pages/signup', { message: 'Email already registered' });
     }
 
-    // Create user
     const hashedPassword = await bcrypt.hash(password, saltRounds);
     const verificationToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
@@ -137,9 +126,9 @@ exports.postSignup = async (req, res) => {
       [name, normalizeEmail(email), hashedPassword, verificationToken]
     );
 
-    // Send verification email
     const verificationLink = `${BASE_URL}/verify-email?token=${verificationToken}`;
-    console.log('Debug - Verification Link:', verificationLink); // For debugging
+    console.log('🔗 Verification Link:', verificationLink);
+
     await sendEmail({
       from: `"Echoes of Time" <${process.env.EMAIL_USER}>`,
       to: email,
@@ -271,7 +260,7 @@ exports.logout = (req, res) => {
   res.redirect('/login');
 };
 
-// Verify email configuration on startup
+// Email server test
 transporter.verify((error) => {
   if (error) {
     console.error('❌ Email configuration error:', error);

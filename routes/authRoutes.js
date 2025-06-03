@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
 
-// root route
+// Landing page
 router.get('/', (req, res) => {
   res.render('pages/landing');
 });
@@ -18,7 +18,7 @@ router.get('/verify-email', authController.verifyEmail);
 router.get('/login', authController.getLogin);
 router.post('/login', authController.postLogin);
 
-// Forgot and reset password routes
+// Forgot and reset password
 router.get('/forgot-password', authController.getForgotPassword);
 router.post('/forgot-password', authController.forgotPassword);
 router.get('/reset-password', authController.getResetPassword);
