@@ -2,51 +2,68 @@ const express = require('express');
 const path = require('path');
 const cookieParser = require('cookie-parser');
 const session = require('express-session');
+const pgSession = require('connect-pg-simple')(session);
 const flash = require('connect-flash');
+const methodOverride = require('method-override');
+const { Pool } = require('pg');
 require('dotenv').config();
+
 const { createUserTable } = require('./Models/userModel');
 const { createStoryTable } = require('./Models/storyModel');
 const { createTestimonialsTable } = require('./Models/testimonialModel');
-const methodOverride = require('method-override');
 
 const app = express();
 const PORT = process.env.PORT || 2004;
 
-// Middlewares
+// === PostgreSQL Pool for Session Store ===
+const pgPool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+});
+
+// === Middlewares ===
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(cookieParser());
 
-// Serve static files
+// === Static files ===
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'secretkey',
-  resave: false,
-  saveUninitialized: true,
-  resave: false,
-  cookie: { secure: true } // Set to true if using HTTPS
-}));
+// === Session setup using connect-pg-simple ===
+app.use(
+  session({
+    store: new pgSession({
+      pool: pgPool,
+      tableName: 'session', // optional
+    }),
+    secret: process.env.SESSION_SECRET || 'secretkey',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      maxAge: 1000 * 60 * 60, // 1 hour
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    },
+  })
+);
 
-// Flash middleware
+// === Flash ===
 app.use(flash());
-
-// Make flash messages available to all views
 app.use((req, res, next) => {
   res.locals.success = req.flash('success');
   res.locals.error = req.flash('error');
   next();
 });
 
-//to allow PUT and DELETE methods in forms
+// === Method override for PUT/DELETE ===
 app.use(methodOverride('_method'));
 
-// View engine
+// === View engine ===
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// Routes
+// === Routes ===
 const adminRoutes = require('./routes/adminRoutes');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
@@ -54,16 +71,12 @@ app.use('/', authRoutes);
 app.use('/admin', adminRoutes);
 app.use('/user', userRoutes);
 
-// Schema creation
-createUserTable(); 
-
+// === Table Creation ===
+createUserTable();
 createStoryTable();
-
 createTestimonialsTable();
 
-// Server
+// === Start server ===
 app.listen(PORT, () => {
-  //console.log(`Server running at http://localhost:${PORT}`);
   console.log(`✅ Server running on port ${PORT}`);
-
 });
