@@ -26,7 +26,7 @@ app.use(session({
   resave: false,
   saveUninitialized: true,
   resave: false,
-  cookie: { secure: false } // Set to true if using HTTPS
+  cookie: { secure: true } // Set to true if using HTTPS
 }));
 
 // Flash middleware
