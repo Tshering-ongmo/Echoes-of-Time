@@ -33,4 +33,3 @@ router.post(
 );
 
 module.exports = router;
-// This code defines the user routes for the application, including protected routes for the user dashboard and public routes for narration, about us, and testimonials. It uses middleware to ensure that certain routes are only accessible to authenticated users. The testimonials submission route includes validation checks for the input fields.
